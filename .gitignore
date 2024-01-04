@@ -1,0 +1,7 @@
+streamlit/Lib/
+streamlit/Scripts/
+streamlit/wandb/
+streamlit/share/
+streamlit/etc/
+streamlit/Include/
+data/
