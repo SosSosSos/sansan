@@ -1,5 +1,10 @@
 # Readme
 ## 環境構築
+### gitからクローン
+1. 適当なフォルダでgit clone
+   ```
+   git clone https://XXXXXXXXXXXX
+   ```
 ### pythonの仮想環境作成
 1. 仮想環境作成
    <br>
@@ -7,12 +12,21 @@
    ``` 
    python -m venv streamlit
    ```
+   pytnonのバージョンを指定する場合はこっち（下記は3.10）
+   ```
+   py -3.10 -m venv streamlit
+   ```
 2. 仮想環境の起動
    <br>
    下記コマンドで仮想環境起動。ターミナルの先頭に仮想環境名が（）で括って表示される。
    ```
    cd streamlit
    Scripts\activate
+   ```
+
+   スクリプトの実行ができないとでたら、PowerShellで下記実行（ポリシー変更しないとデフォルトではpsファイルが実行できない）
+   ```
+   Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process
    ```
 3. 仮想環境のpipのアップデート
    ```

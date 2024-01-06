@@ -5,3 +5,4 @@ streamlit/share/
 streamlit/etc/
 streamlit/Include/
 data/
+streamlit/pyvenv.cfg

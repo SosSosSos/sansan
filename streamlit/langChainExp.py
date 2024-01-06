@@ -26,10 +26,14 @@ os.environ["LANGCHAIN_WANDB_TRACING"] = "true"
 st.write("### Demo of SQLDatabaseToolkit")
 
 
-user_api_key = "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"
+user_api_key = "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"
 os.environ['OPENAI_API_KEY'] = user_api_key
 
-llm = ChatOpenAI(model_name="gpt-3.5-turbo-1106", temperature=0, max_tokens=4096)
+
+@st.cache_resource
+def create_llm():
+    llm = ChatOpenAI(model_name="gpt-3.5-turbo-1106", temperature=0) #, max_tokens=4096)
+    return llm
 
 # agent_executor = create_python_agent(
 #     llm=llm,
@@ -73,38 +77,34 @@ from langchain.vectorstores.faiss import FAISS
 from langchain.schema import Document
 
 @st.cache_resource#(allow_output_mutation=True)
-def create_embedding():
+def create_index():
     embedding = HuggingFaceEmbeddings(model_name="intfloat/multilingual-e5-large")
-    return embedding
 
-# インデックス作成
-embedding = create_embedding()
-few_shot_docs = [
-    Document(page_content=question, metadata={"sql_query": few_shots[question]})
-    for question in few_shots.keys()
-]
+    # インデックス作成
+    few_shot_docs = [
+        Document(page_content=question, metadata={"sql_query": few_shots[question]})
+        for question in few_shots.keys()
+    ]
 
-# チャンクの分割
-text_splitter = RecursiveCharacterTextSplitter(
-    chunk_size=514,
-    chunk_overlap=20,
-)
+    # チャンクの分割
+    text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=514,
+        chunk_overlap=20,
+    )
 
-texts = text_splitter.split_documents(few_shot_docs)
+    texts = text_splitter.split_documents(few_shot_docs)
 
-# チャンクの確認
-print(len(texts))
-print(texts)
+    # インデックスの作成
+    index = FAISS.from_documents(
+        documents=texts,
+        embedding=embedding,
+    )
 
+    return index
 
-# インデックスの作成
-index = FAISS.from_documents(
-    documents=texts,
-    embedding=embedding,
-)
-retriever = index.as_retriever()
+# retriverの作成
+retriever = create_index().as_retriever()
 
-retriever = index.as_retriever()
 from langchain.agents.agent_toolkits import create_retriever_tool
 
 tool_description = """
@@ -125,7 +125,7 @@ Then I should query the schema of the most relevant tables
 """
 
 # SQL Serverへの接続設定
-server = 'SO-PC'
+server = 'GPKMSQ14'
 database = 'datamart'
 username = 'gpkadmin'
 password = '19vK8xEQ'
@@ -135,7 +135,7 @@ connection_string = f'mssql+pyodbc://{username}:{password}@{server}/{database}?d
 db = SQLDatabase.from_uri(connection_string)
 
 # Vertex AI 基盤モデルを初期化 OPEN AI利用
-llm = llm
+llm = create_llm()
 
 # SQL データベースと対話するエージェントの初期化
 toolkit = SQLDatabaseToolkit(db=db, llm=llm)
@@ -160,10 +160,10 @@ if 'history' not in st.session_state:
     st.session_state['history'] = []
 
 if 'generated' not in st.session_state:
-    st.session_state['generated'] = ["Hello! Feel free to ask about anything regarding this"]
+    st.session_state['generated'] = ["売上データと産業資材事業部のコンタクト情報について聞いてみてください！"]
 
 if 'past' not in st.session_state:
-    st.session_state['past'] = ["Hi!"]
+    st.session_state['past'] = ["こんにちは！"]
 # This container will be used to display the chat history.
 response_container = st.container()
 # This container will be used to display the user's input and the response from the ChatOpenAI model.
@@ -171,7 +171,7 @@ container = st.container()
 with container:
     with st.form(key='my_form', clear_on_submit=True):
         
-        user_input = st.text_input("Input:", placeholder="Please enter your message regarding the PDF data.", key='input')
+        user_input = st.text_input("Input:", placeholder="質問を入力してください。", key='input')
         submit_button = st.form_submit_button(label='Send')
         
     if submit_button and user_input:
@@ -188,8 +188,5 @@ with container:
 if st.session_state['generated']:
     with response_container:
         for i in range(len(st.session_state['generated'])):
-            message(st.session_state["past"][i], is_user=True, key=str(i) + '_user', avatar_style="big-smile")
-            message(st.session_state["generated"][i], key=str(i), avatar_style="thumbs")
-            
-            
-
+            message(st.session_state["past"][i], is_user=True, key=str(i) + '_user')#, avatar_style="initials", seed="You") #avatar_style="big-smile")
+            message(st.session_state["generated"][i], key=str(i))#avatar_style="initials", seed="ROB",) # avatar_style="thumbs")
