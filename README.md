@@ -53,6 +53,6 @@ streamllit hello
    ```
 2. 実行
    ```
-   streamlit run langChainExp.py
+   streamlit run Top.py
    ```
 3. 
