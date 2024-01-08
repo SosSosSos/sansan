@@ -31,8 +31,6 @@ st.set_page_config(
 st.write("### 産資　売上・コンタクト検索　(OpenAI + SQLDatabaseToolkit)")
 
 os.environ["LANGCHAIN_WANDB_TRACING"] = "true"
-user_api_key = "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"
-os.environ['OPENAI_API_KEY'] = user_api_keye
 
 @st.cache_resource
 def create_llm():

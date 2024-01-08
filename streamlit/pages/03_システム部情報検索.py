@@ -32,8 +32,6 @@ st.set_page_config(
 st.write("### システム部の情報検索")
 
 os.environ["LANGCHAIN_WANDB_TRACING"] = "true"
-# user_api_key = "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"
-# os.environ['OPENAI_API_KEY'] = user_api_key
 
 hagging_model_name = "intfloat/multilingual-e5-large"
 
