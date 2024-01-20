@@ -51,8 +51,12 @@ streamllit hello
    ```
    pip install -U wandb
    ```
-2. 実行
+2. OpenApiのキーを登録
+.envファイルを作成し下記を記載
+   ```
+   OPENAI_API_KEY="OpenApiのキー"
+   ```
+3. 実行
    ```
    streamlit run Top.py
    ```
-3. 

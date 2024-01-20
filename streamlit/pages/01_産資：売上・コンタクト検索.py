@@ -29,13 +29,15 @@ st.set_page_config(
 )
 
 st.write("### 産資　売上・コンタクト検索　(OpenAI + SQLDatabaseToolkit)")
+st.write("東京支店の2023年10月の売上金額を教えてなど。")
+st.write("OpenAPIのAPIを利用して、SQLを生成、検索しています。")
 
-os.environ["LANGCHAIN_WANDB_TRACING"] = "true"
+# os.environ["LANGCHAIN_WANDB_TRACING"] = "true"
 
 @st.cache_resource
 def create_llm():
-    llm = ChatOpenAI(model_name="gpt-3.5-turbo-1106", temperature=0) #, max_tokens=4096)
-    # llm = ChatOpenAI(model_name="gpt-4-1106-preview", temperature=0)
+    # llm = ChatOpenAI(model_name="gpt-3.5-turbo-1106", temperature=0) #, max_tokens=4096)
+    llm = ChatOpenAI(model_name="gpt-4-1106-preview", temperature=0)
     return llm
 
 # agent_executor = create_python_agent(
@@ -129,7 +131,7 @@ Then I should query the schema of the most relevant tables
 """
 
 # SQL Serverへの接続設定
-server = 'SO-PC'
+server = 'GPKMSQ14'
 database = 'datamart'
 username = 'gpkadmin'
 password = '19vK8xEQ'
@@ -182,7 +184,7 @@ with container:
     if submit_button and user_input:
         question = "salesもしくはcontact情報について"
         question = question + user_input
-        question = question + " 回答の件数が5件以上の場合は、上位5件を教えて。日本語で回答してください。"
+        question = question + " 日本語で回答してください。"
         # question = question + "回答はmarkdownの表で表示して。"
         output = run_query(question)
         # st.write(output)

@@ -21,6 +21,9 @@ from langchain.vectorstores import FAISS
 # from langchain_experimental.agents.agent_toolkits import create_python_agent
 # from langchain_experimental.tools import PythonREPLTool
 import pandas as pd
+from dotenv import load_dotenv
+
+load_dotenv()
 
 st.set_page_config(
     page_title="システム部の情報検索",
@@ -30,6 +33,8 @@ st.set_page_config(
 )
 
 st.write("### システム部の情報検索")
+st.write("BPKBとは？など。")
+st.write("Redmineの情報Vector化したのち、コサイン類似度で類似度が高いものから順に表示します。")
 
 os.environ["LANGCHAIN_WANDB_TRACING"] = "true"
 
