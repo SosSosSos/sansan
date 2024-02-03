@@ -1,59 +1,36 @@
 import os
 import streamlit as st
 from streamlit_chat import message
-# from langchain.embeddings.openai import OpenAIEmbeddings
-# from langchain.llms import OpenAI
 from langchain.chat_models import ChatOpenAI
-# from langchain.chains import ConversationalRetrievalChain
-# from langchain.document_loaders import PyPDFLoader
 from langchain.vectorstores import FAISS
-# import tempfile
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-# from langchain.agents import AgentExecutor
-# from google.cloud import bigquery
 from langchain.agents import create_sql_agent
 from langchain.agents.agent_toolkits import SQLDatabaseToolkit
 from langchain.sql_database import SQLDatabase
-# from sqlalchemy import *
-# from sqlalchemy.engine import create_engine
-# from sqlalchemy.schema import *
 from langchain.agents.agent_types import AgentType
-# from langchain_experimental.agents.agent_toolkits import create_python_agent
-# from langchain_experimental.tools import PythonREPLTool
+from langchain.embeddings import HuggingFaceEmbeddings
+from langchain.schema import Document
+from langchain.agents.agent_toolkits import create_retriever_tool
+from langchain.memory import ConversationBufferMemory
 
-st.set_page_config(
-    page_title="産資　売上・コンタクト検索",
-    page_icon="🧊",
-    layout="wide",
-    initial_sidebar_state="expanded",
-)
+# Vector生成用モデル名称
+EMBEDDING_MODEL_NAME="intfloat/multilingual-e5-large"
+# チャット用モデル名称
+CHAT_MOCEL_NAME = "gpt-4-1106-preview"
+# SQL Serverへの接続設定
+server = 'GPKMSQ14'
+database = 'datamart'
+username = 'readonly'
+password = 'readonly'
+connection_string = f'mssql+pyodbc://{username}:{password}@{server}/{database}?driver=ODBC+Driver+17+for+SQL+Server'
 
-st.write("### 産資　売上・コンタクト検索　(OpenAI + SQLDatabaseToolkit)")
-st.write("東京支店の2023年10月の売上金額を教えてなど。")
-st.write("OpenAPIのAPIを利用して、SQLを生成、検索しています。")
 
-# os.environ["LANGCHAIN_WANDB_TRACING"] = "true"
-
+# チャット用モデル生成
 @st.cache_resource
 def create_llm():
     # llm = ChatOpenAI(model_name="gpt-3.5-turbo-1106", temperature=0) #, max_tokens=4096)
-    llm = ChatOpenAI(model_name="gpt-4-1106-preview", temperature=0)
+    llm = ChatOpenAI(model_name=CHAT_MOCEL_NAME, temperature=0)
     return llm
-
-# agent_executor = create_python_agent(
-#     llm=llm,
-#     tool=PythonREPLTool(),
-#     verbose=True,
-#     agent_type=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
-# )
-
-# answer = agent_executor.run(
-# """
-# ランダムなデータでDataframeを作って
-# """
-# )
-
-# st.write(answer)
 
 # SQLの例
 few_shots = {
@@ -75,94 +52,104 @@ few_shots = {
     "What is anual seles amount of the '名古屋支店'?": "SELECT YEAR(sales_date), sum(s.amount) FROM sales s WHERE s.branch = '名古屋支店' GROUP BY YEAR(s.sales_date) ORDER BY YEAR(s.sales_date) ASC;",
 }
 
-# インデックス化用のモデルダウンロード
-from langchain.chains import RetrievalQA
-from langchain.embeddings import HuggingFaceEmbeddings
-from langchain.llms import LlamaCpp
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.vectorstores.faiss import FAISS
-from langchain.schema import Document
-from langchain.agents.agent_toolkits import create_retriever_tool
-from langchain.memory import ConversationBufferMemory
-
+# Vector用モデル生成
 @st.cache_resource#(allow_output_mutation=True)
 def create_embedding():
-    embedding = HuggingFaceEmbeddings(model_name="intfloat/multilingual-e5-large")
+    embedding = HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL_NAME)
     return embedding
 
 # インデックス作成
-few_shot_docs = [
-    Document(page_content=question, metadata={"sql_query": few_shots[question]})
-    for question in few_shots.keys()
-]
+def create_index():
+    few_shot_docs = [
+        Document(page_content=question, metadata={"sql_query": few_shots[question]})
+        for question in few_shots.keys()
+    ]
 
-# チャンクの分割
-text_splitter = RecursiveCharacterTextSplitter(
-    chunk_size=514,
-    chunk_overlap=20,
-)
+    # チャンクの分割
+    text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=514,
+        chunk_overlap=20,
+    )
 
-texts = text_splitter.split_documents(few_shot_docs)
+    texts = text_splitter.split_documents(few_shot_docs)
 
-# インデックスの作成
-index = FAISS.from_documents(
-    documents=texts,
-    embedding=create_embedding(),
-)
+    # インデックスの作成
+    index = FAISS.from_documents(
+        documents=texts,
+        embedding=create_embedding(),
+    )
+    return index
 
 # retriverの作成
-retriever = index.as_retriever()
-
-tool_description = """
-This tool will help you understand similar examples to adapt them to the user question.
-Input to this tool should be the user question.
-"""
-
-retriever_tool = create_retriever_tool(
-    retriever, name="sql_get_similar_examples", description=tool_description
-)
-custom_tool_list = [retriever_tool]
-
-custom_suffix = """
-I should first get the similar examples I know.
-If the examples are enough to construct the query, I can build it.
-Otherwise, I can then look at the tables in the database to see what I can query.
-Then I should query the schema of the most relevant tables
-"""
-
-# SQL Serverへの接続設定
-server = 'GPKMSQ14'
-database = 'datamart'
-username = 'gpkadmin'
-password = '19vK8xEQ'
-connection_string = f'mssql+pyodbc://{username}:{password}@{server}/{database}?driver=ODBC+Driver+17+for+SQL+Server'
+def create_retriever():
+    retriever = create_index().as_retriever()
+    return retriever
 
 # SQLAlchemyエンジンを作成
 db = SQLDatabase.from_uri(connection_string)
 
-# Vertex AI 基盤モデルを初期化 OPEN AI利用
-llm = create_llm()
-
 # SQL データベースと対話するエージェントの初期化
-toolkit = SQLDatabaseToolkit(db=db, llm=llm)
-agent_executor = create_sql_agent(
-    llm=llm,
-    toolkit=toolkit,
-    verbose=True,
-    # agent_type=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
-    agent_type=AgentType.OPENAI_FUNCTIONS,
-    # top_k=10,
-    extra_tools=custom_tool_list,
-    suffix=custom_suffix,
-    memory=ConversationBufferMemory(return_messages=True)
+def create_agent():
+    tool_description = """
+    This tool will help you understand similar examples to adapt them to the user question.
+    Input to this tool should be the user question.
+    """
+
+    custom_suffix = """
+    I should first get the similar examples I know.
+    If the examples are enough to construct the query, I can build it.
+    Otherwise, I can then look at the tables in the database to see what I can query.
+    Then I should query the schema of the most relevant tables
+    """
+
+    retriever_tool = create_retriever_tool(
+        create_retriever(), 
+        name="sql_get_similar_examples", 
+        description=tool_description
+    )
+    custom_tool_list = [retriever_tool]
+
+    toolkit = SQLDatabaseToolkit(db=db, llm=create_llm())
+
+    agent_executor = create_sql_agent(
+        llm=create_llm(),
+        toolkit=toolkit,
+        verbose=True,
+        # agent_type=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
+        agent_type=AgentType.OPENAI_FUNCTIONS,
+        # top_k=10,
+        extra_tools=custom_tool_list,
+        suffix=custom_suffix,
+        memory=ConversationBufferMemory(return_messages=True),
+        # max_iterations=5,
+        handle_parsing_errors=True,
+    )
+    return agent_executor
+
+# エージェント実行
+def run_query(query):
+    res = create_agent().run(query)
+    return res
+
+# ページ描画
+st.set_page_config(
+    page_title="産資　売上・コンタクト検索",
+    page_icon="🧊",
+    layout="wide",
+    initial_sidebar_state="expanded",
 )
 # サイドバーにリロードボタンをつける
 st.sidebar.button('Reload')
 
-def run_query(query):
-    res = agent_executor.run(query)
-    return res
+st.write("### 産資　売上・コンタクト検索　(OpenAI + SQLDatabaseToolkit)")
+st.write("東京支店の2023年10月の売上金額を教えてなど。")
+st.write("OpenAPIのAPIを利用して、SQLを生成、検索しています。")
 
+# This container will be used to display the chat history.
+response_container = st.container()
+# This container will be used to display the user's input and the response from the ChatOpenAI model.
+container = st.container()
+# os.environ["LANGCHAIN_WANDB_TRACING"] = "true"
 if 'history' not in st.session_state:
     st.session_state['history'] = []
 
@@ -171,10 +158,7 @@ if 'generated' not in st.session_state:
 
 if 'past' not in st.session_state:
     st.session_state['past'] = [""]
-# This container will be used to display the chat history.
-response_container = st.container()
-# This container will be used to display the user's input and the response from the ChatOpenAI model.
-container = st.container()
+
 with container:
     with st.form(key='my_form', clear_on_submit=True):
         
@@ -185,9 +169,11 @@ with container:
         question = "salesもしくはcontact情報について"
         question = question + user_input
         question = question + " 日本語で回答してください。"
-        # question = question + "回答はmarkdownの表で表示して。"
-        output = run_query(question)
-        # st.write(output)
+
+        try:
+            output = run_query(question)
+        except Exception as e:
+            output = f"エラーが発生しました: {e}"
         
         st.session_state['past'].append(user_input)
         st.session_state['generated'].append(output)
